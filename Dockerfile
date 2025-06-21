@@ -1,16 +1,16 @@
 FROM python:3.13-slim
 
-RUN apt-get update && apt-get install -y gcc curl
+WORKDIR /app
 
-RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN apt-get update && apt-get install -y \
+        gcc g++ libc-dev libffi-dev libssl-dev \
+    && pip install poetry \
+    && poetry config virtualenvs.create false
 
-ENV PATH="/root/.local/bin:$PATH"
-WORKDIR /src
+COPY poetry.lock pyproject.toml /app/
 
-COPY . /src
+RUN poetry install --no-dev --no-interaction --no-ansi
 
-RUN poetry install --no-interaction --no-dev
-
-EXPOSE 8000
+COPY . /app/
 
 CMD ["python3", "main.py"]

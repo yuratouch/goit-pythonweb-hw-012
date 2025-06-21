@@ -6,6 +6,7 @@ from pydantic import EmailStr
 from src.services.auth import create_email_token
 from src.conf.config import settings
 
+# Налаштування конфігурації для підключення до сервера електронної пошти
 conf = ConnectionConfig(
     MAIL_USERNAME=settings.MAIL_USERNAME,
     MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -21,12 +22,28 @@ conf = ConnectionConfig(
 )
 
 
-async def send_email(email: EmailStr, username: str, host: str):
+async def send_confirm_email(to_email: EmailStr, username: str, host: str) -> None:
+    """
+    Відправляє електронну пошту для підтвердження адреси електронної пошти.
+
+    Створює токен для підтвердження електронної пошти та надсилає лист користувачеві
+    з посиланням для підтвердження електронної пошти.
+
+    Аргументи:
+        to_email: Адреса електронної пошти отримувача.
+        username: Ім'я користувача для персоналізації листа.
+        host: Хост (домашня адреса), який використовується для побудови посилання.
+
+    Викидає:
+        ConnectionErrors: Якщо виникає помилка під час підключення до сервера електронної пошти.
+    """
     try:
-        token_verification = create_email_token({"sub": email})
+        # Створення токену для підтвердження електронної пошти
+        token_verification = create_email_token({"sub": to_email})
+        # Формування повідомлення для відправки
         message = MessageSchema(
             subject="Confirm your email",
-            recipients=[email],
+            recipients=[to_email],
             template_body={
                 "host": host,
                 "username": username,
@@ -35,7 +52,45 @@ async def send_email(email: EmailStr, username: str, host: str):
             subtype=MessageType.html,
         )
 
+        # Ініціалізація FastMail та відправка повідомлення
         fm = FastMail(conf)
         await fm.send_message(message, template_name="verify_email.html")
+    except ConnectionErrors as err:
+        print(err)
+
+
+async def send_reset_password_email(
+    to_email: EmailStr, username: str, host: str, reset_token: str
+) -> None:
+    """
+    Відправляє електронну пошту для скидання пароля.
+
+    Формує посилання для скидання пароля і надсилає користувачу лист з інструкцією
+    для зміни пароля.
+
+    Аргументи:
+        to_email: Адреса електронної пошти отримувача.
+        username: Ім'я користувача для персоналізації листа.
+        host: Хост (домашня адреса), який використовується для побудови посилання.
+        reset_token: Токен для скидання пароля, що додається до посилання.
+
+    Викидає:
+        ConnectionErrors: Якщо виникає помилка під час підключення до сервера електронної пошти.
+    """
+    try:
+        # Формування посилання для скидання пароля
+        reset_link = f"{host}api/auth/confirm_reset_password/{reset_token}"
+
+        # Формування повідомлення для відправки
+        message = MessageSchema(
+            subject="Important: Update your account information",
+            recipients=[to_email],
+            template_body={"reset_link": reset_link, "username": username},
+            subtype=MessageType.html,
+        )
+
+        # Ініціалізація FastMail та відправка повідомлення
+        fm = FastMail(conf)
+        await fm.send_message(message, template_name="reset_password.html")
     except ConnectionErrors as err:
         print(err)
